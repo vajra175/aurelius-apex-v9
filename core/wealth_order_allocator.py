@@ -248,6 +248,7 @@ class WealthOrderAllocator:
                         "Outlay_INR": outlay,
                         "Weight_Pct": round((outlay / capital) * 100.0, 2),
                         "Buy_Zone": f"₹{cmp*0.99:.1f}–₹{cmp*1.01:.1f}",
+                        "Buy Zone": f"₹{cmp*0.99:.1f}–₹{cmp*1.01:.1f}",
                         "Stop_Loss": round(cmp - (atr_mult * atr), 1),
                         "Target_1": round(cmp + (tgt1_mult * atr), 1),
                         "Target_2": round(cmp + (tgt2_mult * atr), 1),

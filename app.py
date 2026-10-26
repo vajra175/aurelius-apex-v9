@@ -914,24 +914,28 @@ elif selected_station == "🚀 Capital Allocator":
     orders_df = plan.get("Orders_Table", pd.DataFrame())
     if not orders_df.empty:
         for _, ord_row in orders_df.iterrows():
-            sym = ord_row["Symbol"]
-            sleeve = ord_row["Sleeve"]
-            score = ord_row["Score"]
-            cmp_v = ord_row["CMP"]
-            qty = ord_row["Qty"]
-            outlay = ord_row["Outlay_INR"]
-            stop_v = ord_row["Stop_Loss"]
-            tgt1_v = ord_row["Target_1"]
-            tgt2_v = ord_row["Target_2"]
-            div_y = ord_row["Div_Yield_Pct"]
+            sym = ord_row.get("Symbol", "")
+            sleeve = ord_row.get("Sleeve", "Alpha Core")
+            score = float(ord_row.get("Score", 85.0))
+            cmp_v = float(ord_row.get("CMP", 100.0))
+            qty = int(ord_row.get("Qty", 1))
+            outlay = float(ord_row.get("Outlay_INR", 0.0))
+            stop_v = ord_row.get("Stop_Loss", round(cmp_v * 0.95, 1))
+            tgt1_v = ord_row.get("Target_1", round(cmp_v * 1.08, 1))
+            tgt2_v = ord_row.get("Target_2", round(cmp_v * 1.15, 1))
+            div_y = float(ord_row.get("Div_Yield_Pct", 1.2))
+            c_name = ord_row.get("Company_Name", sym)
+            sec_name = ord_row.get("Sector", "Equities")
+            w_pct = float(ord_row.get("Weight_Pct", 0.0))
+            buy_zone = ord_row.get("Buy Zone", ord_row.get("Buy_Zone", f"₹{cmp_v*0.99:.1f}–₹{cmp_v*1.01:.1f}"))
 
             st.markdown(
                 f"""
             <div class="bento-card">
                 <div class="bento-header">
                     <div>
-                        <div class="bento-ticker">{sym} <span style="font-size: 13px; color: var(--accent-primary);">({ord_row['Company_Name']})</span></div>
-                        <div class="bento-company">Sleeve: <b>{sleeve}</b> | Sector: <b>{ord_row['Sector']}</b> | Div Yield: <b>{div_y:.1f}%</b></div>
+                        <div class="bento-ticker">{sym} <span style="font-size: 13px; color: var(--accent-primary);">({c_name})</span></div>
+                        <div class="bento-company">Sleeve: <b>{sleeve}</b> | Sector: <b>{sec_name}</b> | Div Yield: <b>{div_y:.1f}%</b></div>
                     </div>
                     <div style="text-align: right;">
                         <span class="bento-verdict-pill" style="background: rgba(5, 150, 105, 0.15); color: var(--accent-green); border: 1px solid var(--accent-green);">BUY +{qty} SHARES</span>
@@ -940,8 +944,8 @@ elif selected_station == "🚀 Capital Allocator":
                 </div>
                 <div class="bento-corridor">
                     <div>Live CMP: <b>₹{cmp_v:,.2f}</b></div>
-                    <div>Outlay: <b style="color: var(--accent-green);">₹{outlay:,.0f} ({ord_row['Weight_Pct']:.1f}%)</b></div>
-                    <div>Buy Zone: <b>{ord_row['Buy Zone']}</b></div>
+                    <div>Outlay: <b style="color: var(--accent-green);">₹{outlay:,.0f} ({w_pct:.1f}%)</b></div>
+                    <div>Buy Zone: <b>{buy_zone}</b></div>
                     <div>Stop Loss: <b style="color: var(--accent-red);">₹{stop_v}</b></div>
                     <div>Target 1: <b style="color: var(--accent-green);">₹{tgt1_v}</b></div>
                     <div>Target 2: <b style="color: var(--accent-primary);">₹{tgt2_v}</b></div>
