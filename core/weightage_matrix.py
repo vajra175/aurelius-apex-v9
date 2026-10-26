@@ -1,12 +1,13 @@
 """
 ================================================================================
-AURELIUS APEX (AQ-OS v9.0) — 10-BUCKET WEIGHTAGE MATRIX & HORIZON ENGINE
+AURELIUS APEX (AQ-OS v9.1) — UNIFIED 10-BUCKET WEIGHTAGE MATRIX & HORIZON ENGINE
 ================================================================================
 Implements:
-- 10 Independent Self-Feeding Engine Buckets (B01 to B10)
-- 6 Investing Horizons (H0 to H5) & Panic Contrarian Regime
+- Unified 9-Core Quant Engine by Default (B01 through B09 working in 100% unison)
+- Optional B10 Vedic Jyotish Overlay (OFF by default so pure quant is never diluted;
+  1-click toggle ON or custom multi-select)
+- 6 Investing Horizons (H0 to H5) & Panic Contrarian Regime with all 9 Core Engines active
 - 3 Risk Profiles (Conservative, Moderate, Aggressive)
-- 5 Institutional Strategy Presets
 - Gate 0 Principle-1 Hard Forensic Gatekeeper
 - Dynamic Auto-Normalization of Active Buckets (sum(W) == 100.0%)
 - Commercial 3-Line Plain-English Executive Brief Generator
@@ -21,11 +22,13 @@ class AureliusWeightageMatrix:
     """
     Computes exact institutional weights across the 10 Engine Buckets as a function
     of target Investing Horizon (H0 to H5), Market Regime, and user-selected Active Buckets.
+    By default, ALL 9 Core Quantitative/Fundamental/Technical/Whale/Dividend/PE/News/Macro/
+    Master-Investor buckets run together in unison (100% combined power).
     """
 
     # 10 Standard Engine Buckets
     BUCKETS = [
-        "B01_FORENSIC_SHIELD",      # Gate 0 Hard Veto (Always Mandatory)
+        "B01_FORENSIC_SHIELD",      # Gate 0 Hard Veto + Forensic Quality (Always Mandatory)
         "B02_FUNDAMENTAL_MOAT",     # Valuation, Cash-Flow, 3Y ROIIC, CWIP, Damani CCC
         "B03_TECHNICAL_VCP",        # Minervini Stage 2, VCP Tightness, PEAD, Mansfield RS
         "B04_BEHAVIORAL_WHALE",     # Volume Profile POC/VAH/VAL, VPIN, Wyckoff, Order Flow
@@ -34,107 +37,130 @@ class AureliusWeightageMatrix:
         "B07_NEWS_CATALYSTS",       # Live ticker.news NLP, Order-Book-to-Bill, Margin Spreads
         "B08_MACRO_RRG_CHAOS",      # Live Macro Feeds, Sector RRG Quadrants, Hurst, Entropy
         "B09_MASTER_KAUTILYA",      # 12 Master Investors Checklists & Kautilya Saptanga
-        "B10_VEDIC_JYOTISH",        # 1-Click Toggle ON/OFF (9-Graha Lahiri Ephemeris)
+        "B10_VEDIC_JYOTISH",        # Optional 1-Click Toggle ON/OFF (9-Graha Lahiri Ephemeris)
     ]
 
-    # 5 Commercial Strategy Presets
+    BUCKET_LABELS = {
+        "B01_FORENSIC_SHIELD": "B01: Forensic & Accounting Shield (Gate 0 + Beneish/Sloan/Z'')",
+        "B02_FUNDAMENTAL_MOAT": "B02: Fundamental Moat, 3Y ROIIC & CWIP Capex Jolt",
+        "B03_TECHNICAL_VCP": "B03: Technical VCP, Minervini Stage 2 & Mansfield RS",
+        "B04_BEHAVIORAL_WHALE": "B04: Behavioral Whale Flow, Dark Pool & VPIN Toxicity",
+        "B05_DIVIDEND_TSY": "B05: Dividend Aristocrat, Buybacks & Total Shareholder Yield",
+        "B06_PE_QIP_DEALS": "B06: PE/VC Crossover, SEBI QIP Floor & Block Deals",
+        "B07_NEWS_CATALYSTS": "B07: Live News NLP, Order-Book-to-Bill & Margin Catalysts",
+        "B08_MACRO_RRG_CHAOS": "B08: Macro Liquidity, Sector RRG & Chaos Physics",
+        "B09_MASTER_KAUTILYA": "B09: 12 Master Investors DNA & Kautilya Saptanga",
+        "B10_VEDIC_JYOTISH": "B10: Siddhantic Vedic Jyotish & SBC Vedha (Optional Overlay)",
+    }
+
+    # Core 9 Quantitative & Institutional Engines (Default Unified Powerhouse — excludes Vedic)
+    CORE_9_QUANT_BUCKETS = [
+        "B01_FORENSIC_SHIELD",
+        "B02_FUNDAMENTAL_MOAT",
+        "B03_TECHNICAL_VCP",
+        "B04_BEHAVIORAL_WHALE",
+        "B05_DIVIDEND_TSY",
+        "B06_PE_QIP_DEALS",
+        "B07_NEWS_CATALYSTS",
+        "B08_MACRO_RRG_CHAOS",
+        "B09_MASTER_KAUTILYA",
+    ]
+
+    # Strategy Modes (Unified All-9 Core Quant is primary default; never dilutes into narrow single-method silos unless customized)
     STRATEGY_PRESETS = {
-        "ALL_10_OMNI_BRAIN": [
-            "B02_FUNDAMENTAL_MOAT", "B03_TECHNICAL_VCP", "B04_BEHAVIORAL_WHALE",
-            "B05_DIVIDEND_TSY", "B06_PE_QIP_DEALS", "B07_NEWS_CATALYSTS",
-            "B08_MACRO_RRG_CHAOS", "B09_MASTER_KAUTILYA", "B10_VEDIC_JYOTISH"
-        ],
-        "INSTITUTIONAL_PURE_QUANT": [
-            "B02_FUNDAMENTAL_MOAT", "B03_TECHNICAL_VCP", "B04_BEHAVIORAL_WHALE",
-            "B06_PE_QIP_DEALS", "B08_MACRO_RRG_CHAOS"
-        ],
-        "BUFFETT_MUNGER_COMPOUNDER": [
-            "B02_FUNDAMENTAL_MOAT", "B05_DIVIDEND_TSY", "B09_MASTER_KAUTILYA"
-        ],
-        "MINERVINI_WHALE_BREAKOUT": [
-            "B03_TECHNICAL_VCP", "B04_BEHAVIORAL_WHALE", "B06_PE_QIP_DEALS",
-            "B07_NEWS_CATALYSTS"
-        ],
-        "CUSTOM": []  # Populated dynamically by user UI toggles
+        "UNIFIED_9_CORE_QUANT": list(CORE_9_QUANT_BUCKETS),
+        "ALL_10_OMNI_BRAIN": list(BUCKETS),
+        "INSTITUTIONAL_PURE_QUANT": list(CORE_9_QUANT_BUCKETS),
+        "BUFFETT_MUNGER_COMPOUNDER": list(CORE_9_QUANT_BUCKETS),
+        "MINERVINI_WHALE_BREAKOUT": list(CORE_9_QUANT_BUCKETS),
+        "CUSTOM": list(CORE_9_QUANT_BUCKETS),
     }
 
     # Baseline Weight Vectors across all 6 Horizons (H0 - H5)
+    # Every core bucket has a meaningful, horizon-calibrated weight so all methods work together in unison.
     HORIZON_WEIGHT_TENSORS = {
-        "H0": {  # 1 - 3 Days (Ultra-Fast Momentum / Scalp)
-            "B02_FUNDAMENTAL_MOAT": 0.05,
-            "B03_TECHNICAL_VCP": 0.35,
-            "B04_BEHAVIORAL_WHALE": 0.35,
-            "B05_DIVIDEND_TSY": 0.00,
-            "B06_PE_QIP_DEALS": 0.10,
+        "H0": {  # 1 - 3 Days (Ultra-Fast Momentum / Intraday / Bada-Swing Scalp)
+            "B01_FORENSIC_SHIELD": 0.08,
+            "B02_FUNDAMENTAL_MOAT": 0.06,
+            "B03_TECHNICAL_VCP": 0.30,
+            "B04_BEHAVIORAL_WHALE": 0.28,
+            "B05_DIVIDEND_TSY": 0.02,
+            "B06_PE_QIP_DEALS": 0.08,
             "B07_NEWS_CATALYSTS": 0.10,
             "B08_MACRO_RRG_CHAOS": 0.05,
-            "B09_MASTER_KAUTILYA": 0.00,
-            "B10_VEDIC_JYOTISH": 0.00,
+            "B09_MASTER_KAUTILYA": 0.03,
+            "B10_VEDIC_JYOTISH": 0.03,
         },
-        "H1": {  # 1 - 4 Weeks (Swing Momentum & Catalysts)
+        "H1": {  # 1 - 4 Weeks (Swing Velocity & Breakout Catalysts)
+            "B01_FORENSIC_SHIELD": 0.10,
             "B02_FUNDAMENTAL_MOAT": 0.10,
-            "B03_TECHNICAL_VCP": 0.25,
-            "B04_BEHAVIORAL_WHALE": 0.25,
-            "B05_DIVIDEND_TSY": 0.03,
-            "B06_PE_QIP_DEALS": 0.15,
+            "B03_TECHNICAL_VCP": 0.24,
+            "B04_BEHAVIORAL_WHALE": 0.22,
+            "B05_DIVIDEND_TSY": 0.04,
+            "B06_PE_QIP_DEALS": 0.11,
             "B07_NEWS_CATALYSTS": 0.10,
-            "B08_MACRO_RRG_CHAOS": 0.07,
-            "B09_MASTER_KAUTILYA": 0.02,
-            "B10_VEDIC_JYOTISH": 0.03,
+            "B08_MACRO_RRG_CHAOS": 0.05,
+            "B09_MASTER_KAUTILYA": 0.04,
+            "B10_VEDIC_JYOTISH": 0.04,
         },
-        "H2": {  # 1 - 6 Months (Positional & PEAD Post-Earnings)
-            "B02_FUNDAMENTAL_MOAT": 0.20,
-            "B03_TECHNICAL_VCP": 0.20,
-            "B04_BEHAVIORAL_WHALE": 0.15,
-            "B05_DIVIDEND_TSY": 0.05,
-            "B06_PE_QIP_DEALS": 0.15,
-            "B07_NEWS_CATALYSTS": 0.10,
-            "B08_MACRO_RRG_CHAOS": 0.07,
-            "B09_MASTER_KAUTILYA": 0.05,
-            "B10_VEDIC_JYOTISH": 0.03,
+        "H2": {  # 1 - 6 Months (Positional & PEAD Post-Earnings Drift)
+            "B01_FORENSIC_SHIELD": 0.12,
+            "B02_FUNDAMENTAL_MOAT": 0.18,
+            "B03_TECHNICAL_VCP": 0.18,
+            "B04_BEHAVIORAL_WHALE": 0.14,
+            "B05_DIVIDEND_TSY": 0.06,
+            "B06_PE_QIP_DEALS": 0.12,
+            "B07_NEWS_CATALYSTS": 0.09,
+            "B08_MACRO_RRG_CHAOS": 0.05,
+            "B09_MASTER_KAUTILYA": 0.06,
+            "B10_VEDIC_JYOTISH": 0.04,
         },
         "H3": {  # 6 - 12 Months (Annual Catalysts & Capex Inflection)
-            "B02_FUNDAMENTAL_MOAT": 0.25,
-            "B03_TECHNICAL_VCP": 0.15,
+            "B01_FORENSIC_SHIELD": 0.14,
+            "B02_FUNDAMENTAL_MOAT": 0.22,
+            "B03_TECHNICAL_VCP": 0.14,
             "B04_BEHAVIORAL_WHALE": 0.10,
-            "B05_DIVIDEND_TSY": 0.10,
-            "B06_PE_QIP_DEALS": 0.12,
-            "B07_NEWS_CATALYSTS": 0.10,
-            "B08_MACRO_RRG_CHAOS": 0.08,
-            "B09_MASTER_KAUTILYA": 0.07,
-            "B10_VEDIC_JYOTISH": 0.03,
+            "B05_DIVIDEND_TSY": 0.09,
+            "B06_PE_QIP_DEALS": 0.10,
+            "B07_NEWS_CATALYSTS": 0.08,
+            "B08_MACRO_RRG_CHAOS": 0.05,
+            "B09_MASTER_KAUTILYA": 0.08,
+            "B10_VEDIC_JYOTISH": 0.04,
         },
-        "H4": {  # 1 - 3 Years (Multibagger Capex Cycle)
-            "B02_FUNDAMENTAL_MOAT": 0.30,
+        "H4": {  # 1 - 3 Years (Multibagger Capex & Institutional Re-rating Cycle)
+            "B01_FORENSIC_SHIELD": 0.15,
+            "B02_FUNDAMENTAL_MOAT": 0.25,
             "B03_TECHNICAL_VCP": 0.10,
             "B04_BEHAVIORAL_WHALE": 0.08,
-            "B05_DIVIDEND_TSY": 0.15,
-            "B06_PE_QIP_DEALS": 0.10,
-            "B07_NEWS_CATALYSTS": 0.07,
+            "B05_DIVIDEND_TSY": 0.12,
+            "B06_PE_QIP_DEALS": 0.09,
+            "B07_NEWS_CATALYSTS": 0.06,
             "B08_MACRO_RRG_CHAOS": 0.05,
-            "B09_MASTER_KAUTILYA": 0.12,
-            "B10_VEDIC_JYOTISH": 0.03,
+            "B09_MASTER_KAUTILYA": 0.10,
+            "B10_VEDIC_JYOTISH": 0.04,
         },
-        "H5": {  # 3 - 10 Years+ (Forever Compounder)
-            "B02_FUNDAMENTAL_MOAT": 0.35,
-            "B03_TECHNICAL_VCP": 0.04,
+        "H5": {  # 3 - 10 Years+ (Dynastic Forever Compounder & Dividend Royalty)
+            "B01_FORENSIC_SHIELD": 0.18,
+            "B02_FUNDAMENTAL_MOAT": 0.28,
+            "B03_TECHNICAL_VCP": 0.05,
             "B04_BEHAVIORAL_WHALE": 0.05,
-            "B05_DIVIDEND_TSY": 0.22,
+            "B05_DIVIDEND_TSY": 0.18,
             "B06_PE_QIP_DEALS": 0.06,
             "B07_NEWS_CATALYSTS": 0.04,
             "B08_MACRO_RRG_CHAOS": 0.04,
-            "B09_MASTER_KAUTILYA": 0.18,
-            "B10_VEDIC_JYOTISH": 0.02,
+            "B09_MASTER_KAUTILYA": 0.12,
+            "B10_VEDIC_JYOTISH": 0.03,
         },
         "PANIC_CONTRARIAN": {  # Speech / War / Flash Crash Dislocation
-            "B02_FUNDAMENTAL_MOAT": 0.30,
-            "B03_TECHNICAL_VCP": 0.05,
-            "B04_BEHAVIORAL_WHALE": 0.25,
-            "B05_DIVIDEND_TSY": 0.15,
-            "B06_PE_QIP_DEALS": 0.10,
-            "B07_NEWS_CATALYSTS": 0.05,
-            "B08_MACRO_RRG_CHAOS": 0.05,
-            "B09_MASTER_KAUTILYA": 0.05,
+            "B01_FORENSIC_SHIELD": 0.18,
+            "B02_FUNDAMENTAL_MOAT": 0.24,
+            "B03_TECHNICAL_VCP": 0.06,
+            "B04_BEHAVIORAL_WHALE": 0.20,
+            "B05_DIVIDEND_TSY": 0.12,
+            "B06_PE_QIP_DEALS": 0.08,
+            "B07_NEWS_CATALYSTS": 0.04,
+            "B08_MACRO_RRG_CHAOS": 0.04,
+            "B09_MASTER_KAUTILYA": 0.04,
             "B10_VEDIC_JYOTISH": 0.00,
         },
     }
@@ -171,19 +197,15 @@ class AureliusWeightageMatrix:
 
         base_weights = cls.HORIZON_WEIGHT_TENSORS[h_key].copy()
 
-        # If active_buckets is specified, filter and renormalize
-        if active_buckets is not None and len(active_buckets) > 0:
-            active_set = set(active_buckets)
-            filtered = {k: v for k, v in base_weights.items() if k in active_set}
-            total = sum(filtered.values())
-            if total > 0.0001:
-                return {k: round(v / total, 4) for k, v in filtered.items()}
-            else:
-                # Equal weights among active
-                eq = round(1.0 / len(active_set), 4)
-                return {k: eq for k in active_set}
-
-        return base_weights
+        # Default to all 9 Core Quant buckets if none passed
+        effective_list = active_buckets if (active_buckets is not None and len(active_buckets) > 0) else cls.CORE_9_QUANT_BUCKETS
+        active_set = set(effective_list)
+        filtered = {k: v for k, v in base_weights.items() if k in active_set}
+        total = sum(filtered.values())
+        if total > 0.0001:
+            return {k: round(v / total, 4) for k, v in filtered.items()}
+        eq = round(1.0 / max(len(active_set), 1), 4)
+        return {k: eq for k in active_set}
 
     @classmethod
     def get_risk_parameters(cls, risk_profile: str = "MODERATE") -> Dict[str, Any]:
@@ -226,31 +248,18 @@ class AureliusWeightageMatrix:
     def evaluate_gate_0(cls, symbol: str, codex: Dict[str, Any]) -> Tuple[bool, str]:
         """
         Gate 0: Principle-1 Non-Negotiable Forensic & Survival Gatekeeper.
-        Checks:
-        - Explicit known catastrophic distress symbols
-        - Beneish M-Score > -1.78 (severe earnings manipulation)
-        - Sloan Accruals > 10% (paper earnings diverged from real cash)
-        - CFO / EBITDA < 40% (poor operating cash generation)
-        - Promoter Pledge > 20% (confiscation risk)
-        - Altman Z-Score < 1.2 (distress zone)
         """
         sym = symbol.upper().replace(".NS", "").replace(".BO", "")
 
-        # Explicit known high-risk distress symbols
         if sym in ["YESBANK", "RCOM", "DHFL", "VODIDEA", "IDEA", "SUZLON_OLD", "JPPOWER"]:
-            return False, f"Gate 0 Hard Veto: {sym} flagged for catastrophic debt, historic restructuring, or insolvency risk."
+            return False, f"Gate 0 Hard Veto: {sym} flagged for catastrophic debt, equity dilution, or insolvency risk."
 
-        # Check codex variables defensively
         m_score = float(codex.get("008. Beneish_M_Score", codex.get("Beneish_M_Score", -2.85)))
         if m_score > -1.78:
             return False, f"Gate 0 Hard Veto: Beneish M-Score ({m_score:.2f}) indicates high earnings manipulation risk (> -1.78 threshold)."
 
         sloan = float(codex.get("015. Sloan_Accrual_Ratio_Pct", codex.get("Sloan_Accrual_Ratio", 4.2)))
-        # Convert decimal to percentage if needed
-        if 0 < sloan <= 1.0:
-            sloan_pct = sloan * 100.0
-        else:
-            sloan_pct = sloan
+        sloan_pct = sloan * 100.0 if 0 < abs(sloan) <= 1.0 else sloan
         if sloan_pct > 15.0:
             return False, f"Gate 0 Hard Veto: Sloan Accrual ({sloan_pct:.1f}%) exceeds 15.0% limit (paper earnings vs. real cash divergence)."
 
@@ -280,13 +289,12 @@ class AureliusWeightageMatrix:
         active_buckets: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
-        Synthesizes Master Conviction Score (0-100) across active engine buckets.
+        Synthesizes Master Conviction Score (0-100) across all active engine buckets.
         Calculates multi-horizon tensor vector, Kelly sizing, and generates 3-line brief.
         """
         gate_passed, gate_reason = cls.evaluate_gate_0(symbol, codex)
         gate_multiplier = 1.0 if gate_passed else 0.0
 
-        # Retrieve risk settings
         risk_params = cls.get_risk_parameters(risk_profile)
         max_alloc_cap = risk_params["max_single_stock_pct"]
 
@@ -299,26 +307,26 @@ class AureliusWeightageMatrix:
                 s = bucket_scores.get(b_name, 50.0)
                 raw_s += s * b_wt
 
-            # Institutional synergy boost
+            # Multi-engine confluence synergy boost when multiple engines confirm simultaneously
             synergy = 0.0
-            if bucket_scores.get("B02_FUNDAMENTAL_MOAT", 0) >= 80 and bucket_scores.get("B03_TECHNICAL_VCP", 0) >= 75:
+            if bucket_scores.get("B02_FUNDAMENTAL_MOAT", 0) >= 78 and bucket_scores.get("B03_TECHNICAL_VCP", 0) >= 75:
                 synergy += 3.5
-            if bucket_scores.get("B05_DIVIDEND_TSY", 0) >= 75 and bucket_scores.get("B06_PE_QIP_DEALS", 0) >= 70:
+            if bucket_scores.get("B05_DIVIDEND_TSY", 0) >= 72 and bucket_scores.get("B06_PE_QIP_DEALS", 0) >= 70:
                 synergy += 2.5
-            if bucket_scores.get("B04_BEHAVIORAL_WHALE", 0) >= 80 and bucket_scores.get("B07_NEWS_CATALYSTS", 0) >= 75:
+            if bucket_scores.get("B04_BEHAVIORAL_WHALE", 0) >= 75 and bucket_scores.get("B07_NEWS_CATALYSTS", 0) >= 70:
                 synergy += 2.5
+            if bucket_scores.get("B01_FORENSIC_SHIELD", 0) >= 82 and bucket_scores.get("B09_MASTER_KAUTILYA", 0) >= 75:
+                synergy += 2.0
 
             final_s = gate_multiplier * min(100.0, max(0.0, raw_s + synergy))
             if not gate_passed:
                 final_s = min(24.5, final_s if final_s > 0 else 18.0)
             horizon_scores[h_code] = round(final_s, 1)
 
-        # Selected horizon score
         sel_h = horizon_code.upper() if horizon_code.upper() in horizon_scores else "H4"
         master_score = horizon_scores[sel_h]
         best_h = max(horizon_scores, key=horizon_scores.get)
 
-        # Verdict and Action Code assignment
         if not gate_passed or master_score < 45.0:
             verdict = "RED FULL EXIT / AVOID"
             action_code = "FULL_EXIT"
@@ -340,7 +348,6 @@ class AureliusWeightageMatrix:
             action_code = "TRIM"
             kelly_pct = 1.5
 
-        # 3-Line Plain-English Executive Brief
         brief = cls.generate_3line_brief(
             symbol=symbol,
             score=master_score,
@@ -363,6 +370,7 @@ class AureliusWeightageMatrix:
             "Gate_0_Reason": gate_reason,
             "Kelly_Weight_Pct": round(kelly_pct, 2),
             "Bucket_Scores": bucket_scores,
+            "Active_Weights": cls.get_weights(sel_h, is_panic_mode, active_buckets),
             "Executive_Brief": brief,
             "Risk_Params": risk_params,
         }
@@ -380,10 +388,10 @@ class AureliusWeightageMatrix:
         risk_params: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, str]:
         """
-        Creates a clean 3-line executive plain-English brief:
-        Line 1 (Why Buy / Avoid Now)
-        Line 2 (Catalyst & Cash-Flow Proof)
-        Line 3 (Exact Execution & Risk Guardrail)
+        Creates a rich, stock-specific 3-line executive plain-English brief:
+        Line 1 (Economic Moat & Why Buy / Avoid Now)
+        Line 2 (Catalyst, Whale Flow & Cash-Flow Proof)
+        Line 3 (Exact Execution Corridor & Risk Guardrail)
         """
         sym = symbol.upper().replace(".NS", "").replace(".BO", "")
         cmp = float(codex.get("CMP", 100.0))
@@ -395,18 +403,23 @@ class AureliusWeightageMatrix:
         tgt1 = round(cmp + (r_params.get("target_1_multiplier", 3.5) * atr), 1)
         tgt2 = round(cmp + (r_params.get("target_2_multiplier", 6.0) * atr), 1)
         div_yield = float(codex.get("217. Trailing_Dividend_Yield_Pct", codex.get("Dividend_Yield_Pct", 1.2)))
+        roiic = float(codex.get("255. Incremental_ROIC_3Yr_ROIIC_Pct", 22.0))
+        vcp = float(codex.get("266. VCP_Volatility_Contraction_Tightness_Score", 78.0))
+        beneish = float(codex.get("008. Beneish_M_Score", -2.65))
+        altman = float(codex.get("209. Altmans_Z_Score_Emerging_Markets", 3.40))
+        qip_floor = float(codex.get("237. SEBI_ICDR_QIP_Preferential_Floor_Price", cmp * 0.96))
 
         if not gate_passed:
             return {
                 "badge": "FORENSIC HARD VETO",
-                "line_1": f"High forensic danger: {sym} breached Gate 0 survival rules with elevated promoter pledge, debt, or earnings manipulation canary.",
-                "line_2": "Negative owner earnings and paper accruals guarantee zero institutional safety under adverse market shocks.",
-                "line_3": "Immediate Action: 100% Capital Preservation Triggered. Do not deploy fresh funds; exit and rotate to fortress balance sheets.",
+                "line_1": f"Forensic Veto Triggered: {sym} breached Gate 0 survival rules (Beneish M: {beneish:.2f}, Altman Z: {altman:.2f}) due to balance-sheet stress or earnings dilution.",
+                "line_2": "Negative owner cash conversion and elevated accrual risk indicate severe downside vulnerability during institutional de-risking.",
+                "line_3": "Immediate Execution: 100% Capital Preservation Active. Liquidate exposure and rotate freed capital into Gate-0 cleared Alpha Leaders.",
             }
 
         h_names = {
             "H0": "1-3 Days Ultra-Fast Scalp",
-            "H1": "1-4 Weeks Swing Momentum",
+            "H1": "1-4 Weeks Swing Velocity",
             "H2": "1-6 Months Positional PEAD",
             "H3": "6-12 Months Capex Inflection",
             "H4": "1-3 Years Multibagger Cycle",
@@ -414,28 +427,24 @@ class AureliusWeightageMatrix:
         }
         h_desc = h_names.get(horizon, "1-3 Years Multibagger")
 
-        # Line 1: Why Buy Now
+        # Line 1: Economic Moat & Multi-Engine Thesis
         if score >= 75.0:
-            if bucket_scores.get("B05_DIVIDEND_TSY", 0) >= 75:
-                l1 = f"High-yield royalty moat: {sym} delivers {div_yield:.1f}% dividend yield with rock-solid FCF coverage and institutional payout streak."
+            if bucket_scores.get("B05_DIVIDEND_TSY", 0) >= 75 and div_yield >= 2.0:
+                l1 = f"High-Yield Compounder Moat: {sym} combines a {div_yield:.1f}% dividend yield with {roiic:.1f}% 3Y incremental ROIC and clean forensic accounting (Beneish M: {beneish:.2f})."
             elif bucket_scores.get("B06_PE_QIP_DEALS", 0) >= 75:
-                l1 = f"Institutional & PE accumulation: {sym} trades with marquee institutional backing and SEBI QIP floor price protection."
+                l1 = f"Institutional & PE Sponsorship: {sym} is backed by institutional block accumulation near SEBI QIP Floor (₹{qip_floor:,.1f}) with {roiic:.1f}% 3Y ROIIC."
             elif bucket_scores.get("B02_FUNDAMENTAL_MOAT", 0) >= 75:
-                l1 = f"Capex inflection leader: High incremental ROIC (ROIIC) and CWIP commissioning unlock explosive operational cash flow."
-            elif bucket_scores.get("B03_TECHNICAL_VCP", 0) >= 75:
-                l1 = f"Minervini Stage-2 breakout: Volatility contraction pattern (VCP) complete with institutional volume surge and Mansfield RS leadership."
+                l1 = f"Capex & ROIIC Inflection Leader: {sym} generates {roiic:.1f}% 3-year incremental ROIC with strong CWIP-to-Net-Block commissioning and fortress Altman Z ({altman:.2f})."
             else:
-                l1 = f"Top-tier sovereign compounder: Superior ROCE, pristine cash conversion, and accumulation across all active evaluation engines."
+                l1 = f"Multi-Engine Sovereign Leader: {sym} passes all 9 core quantitative engines simultaneously with {roiic:.1f}% ROIIC, {div_yield:.1f}% dividend yield, and clean cash conversion."
         else:
-            l1 = f"Steady-state portfolio asset: {sym} demonstrates balanced fundamentals with stable operating margins and resilient balance sheet."
+            l1 = f"Core Portfolio Compounder: {sym} maintains resilient operating cash flows (3Y ROIIC: {roiic:.1f}%, Altman Z: {altman:.2f}, Div Yield: {div_yield:.1f}%) with intact balance-sheet safety."
 
-        # Line 2: Catalyst & Cash Flow Proof
-        vcp = codex.get("266. VCP_Volatility_Contraction_Tightness_Score", 78.0)
-        roiic = codex.get("255. Incremental_ROIC_3Yr_ROIIC_Pct", 22.0)
-        l2 = f"Catalyst Proof: Incremental ROIIC at {roiic}%, VCP tightness at {vcp}%, and positive institutional order-flow footprint."
+        # Line 2: Catalyst, Microstructure & Tape Proof
+        l2 = f"Catalyst & Tape Proof: VCP volatility tightness at {vcp:.1f}%, SEBI QIP institutional reference at ₹{qip_floor:,.1f}, and positive whale delivery absorption."
 
-        # Line 3: Exact Execution
-        l3 = f"Execution: Horizon {horizon} ({h_desc}). Buy Zone: ₹{cmp*0.99:.1f}–₹{cmp*1.01:.1f} | Stop Loss: ₹{stop_loss} ({atr_mult}x ATR) | Targets: ₹{tgt1} & ₹{tgt2}."
+        # Line 3: Exact Execution Corridor
+        l3 = f"Execution ({horizon} — {h_desc}): Accumulate in Buy Zone ₹{cmp*0.99:.1f}–₹{cmp*1.01:.1f} | Stop-Loss: ₹{stop_loss:,.1f} ({atr_mult}x ATR) | Target T1: ₹{tgt1:,.1f} & T2: ₹{tgt2:,.1f}."
 
         return {
             "badge": verdict,

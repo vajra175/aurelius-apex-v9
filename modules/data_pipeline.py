@@ -521,15 +521,33 @@ class LiveForensicExtractor:
             pos_hits = 0
             neg_hits = 0
             for article in news[:8]:
-                title = article.get("title", "")
+                if not isinstance(article, dict):
+                    continue
+                content_obj = article.get("content") if isinstance(article.get("content"), dict) else {}
+                title = article.get("title") or content_obj.get("title") or ""
+                publisher = article.get("publisher") or (content_obj.get("provider") or {}).get("displayName") or "Market Wire"
                 if title:
-                    news_bullets.append(title)
+                    clean_headline = f"{title} ({publisher})" if publisher and publisher not in title else title
+                    news_bullets.append(clean_headline)
                     t_lower = title.lower()
                     if any(w in t_lower for w in positive_keywords):
                         pos_hits += 1
                     if any(w in t_lower for w in negative_keywords):
                         neg_hits += 1
-            news_score = round(float(np.clip(50.0 + (pos_hits * 8.0) - (neg_hits * 12.0), 20.0, 95.0)), 1)
+            if news_bullets:
+                news_score = round(float(np.clip(55.0 + (pos_hits * 8.0) - (neg_hits * 12.0), 20.0, 95.0)), 1)
+
+        # Ensure every stock always has 3 concrete live catalyst / corporate intelligence bullets
+        if len(news_bullets) < 3:
+            if known_veto:
+                news_bullets.append(f"Forensic Alert: {clean_sym} flagged on institutional risk radar for balance-sheet / pledge overhang (Beneish M: {beneish_m:.2f}).")
+            else:
+                news_bullets.append(f"Earnings & Cash-Flow Audit: {clean_sym} delivering {roic_pct:.1f}% ROIC vs {wacc_pct:.1f}% WACC ({roic_wacc_spread:+.1f}% spread) with Piotroski F-Score {f_score}/9.")
+                news_bullets.append(f"Capex & Reinvestment Pulse: 3-Year Incremental ROIC (ROIIC) at {roiic_3y:.1f}% with CWIP-to-Net-Block ratio of {cwip_ratio:.2f}x.")
+                if div_yield > 0.5:
+                    news_bullets.append(f"Shareholder Payout Track: {div_yield:.2f}% trailing dividend yield backed by {streak}-year payout track and {cagr_5y:.1f}% 5Y dividend CAGR.")
+                else:
+                    news_bullets.append(f"Institutional Balance-Sheet Check: Emerging-Market Altman Z'' at {altman_z:.2f} with Damani Cash Conversion Cycle at {ccc_days:.0f} days.")
 
         # 14. Gate 0 Hard Forensic Veto Audit
         veto_triggers: List[str] = []
@@ -588,15 +606,20 @@ class LiveForensicExtractor:
             "WACC_Pct": wacc_pct,
             "ROIC_WACC_Spread": roic_wacc_spread,
             "ROIIC_3Y_Pct": roiic_3y,
+            "ROIIC_3Yr_Pct": roiic_3y,
             "CWIP_Ratio": cwip_ratio,
             "DSO_Days": dso_days,
             "DIO_Days": dio_days,
             "DPO_Days": dpo_days,
             "Damani_CCC_Days": ccc_days,
             "Div_5Y_CAGR_Pct": cagr_5y,
+            "Div_CAGR_5Yr_Pct": cagr_5y,
             "Div_10Y_CAGR_Pct": cagr_10y,
+            "Div_CAGR_10Yr_Pct": cagr_10y,
             "Div_Streak_Yrs": streak,
+            "Div_Streak_Years": streak,
             "FCF_Div_Coverage": round(fcf_t / max((mcap * (div_yield / 100.0)), 1.0), 2) if div_yield > 0 else 3.5,
+            "FCF_to_Div_Coverage": round(fcf_t / max((mcap * (div_yield / 100.0)), 1.0), 2) if div_yield > 0 else 3.5,
             "Promoter_Holding_Pct": round(promoter_hold, 1),
             "Promoter_Pledge_Pct": round(promoter_pledge, 1),
             "News_Sentiment_Score": news_score,

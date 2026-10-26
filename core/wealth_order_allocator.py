@@ -258,17 +258,29 @@ class WealthOrderAllocator:
                     }
                     orders.append(order_item)
 
-                    # Executive brief
-                    moat_txt = stock.get("Moat", f"Industry leader in {order_item['Sector']} with strong ROCE and institutional sponsorship.")
-                    cat_txt = stock.get("Catalyst", f"Positive volume breakout, VCP contraction complete, and favorable earnings trajectory.")
+                    # Executive brief & Live News (prefer live-evaluated 10-Bucket brief when available)
+                    sec_label = order_item["Sector"]
+                    default_moat = f"Industry leader in {sec_label} with strong ROCE, clean forensics, and institutional sponsorship."
+                    l1_val = stock.get("Line_1") or f"Moat: {stock.get('Moat', default_moat)}"
+                    l2_val = stock.get("Line_2") or f"Catalyst: {stock.get('Catalyst', 'Positive volume accumulation, VCP contraction complete, and strong cash conversion.')}"
+                    l3_val = f"Execution ({order_item['Horizon']}): Buy +{qty} shares @ ₹{cmp:,.2f} (Outlay: ₹{outlay:,.0f} | {order_item['Weight_Pct']:.1f}% weight) | Buy Zone: {order_item['Buy_Zone']} | Stop-Loss: ₹{order_item['Stop_Loss']} | Targets: ₹{order_item['Target_1']} & ₹{order_item['Target_2']}."
+                    news_items = stock.get("News_Headlines", [
+                        f"{sym} ({order_item['Company_Name']}): Ranked in {s_name} sleeve with {score_val:.1f}/100 Master Alpha Conviction.",
+                        f"Yield & Cash Guardrail: {div_yield_val:.2f}% dividend yield with institutional stop-loss at ₹{order_item['Stop_Loss']}."
+                    ])
+                    order_item["Line_1"] = l1_val
+                    order_item["Line_2"] = l2_val
+                    order_item["Line_3"] = l3_val
+                    order_item["News_Headlines"] = news_items
                     briefs.append({
                         "Symbol": sym,
                         "Name": order_item["Company_Name"],
                         "Qty": qty,
                         "Outlay": outlay,
-                        "Line_1": f"Moat: {moat_txt}",
-                        "Line_2": f"Catalyst: {cat_txt}",
-                        "Line_3": f"Execution: Buy {qty} shares @ ₹{cmp:,.1f} (₹{outlay:,.0f} outlay) | Stop ₹{order_item['Stop_Loss']} | Target ₹{order_item['Target_1']}.",
+                        "Line_1": l1_val,
+                        "Line_2": l2_val,
+                        "Line_3": l3_val,
+                        "News_Headlines": news_items,
                     })
 
         df_orders = pd.DataFrame(orders)

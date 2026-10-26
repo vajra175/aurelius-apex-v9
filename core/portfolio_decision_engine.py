@@ -262,8 +262,13 @@ class PortfolioDecisionEngine:
             
             score = float(eval_res.get("Master_Alpha_Score", 60.0))
             gate_0_passed = bool(eval_res.get("Gate_0_Passed", True))
-            kelly_target_pct = float(eval_res.get("Kelly_Weight_Pct", 4.0))
+            kelly_target_pct = float(eval_res.get("Kelly_Weight_Pct", eval_res.get("Kelly Weight %", 4.0)))
             brief = eval_res.get("Executive_Brief", {})
+            sub_brief = brief.get("3line_brief", {}) if isinstance(brief.get("3line_brief"), dict) else {}
+            l1_txt = brief.get("line_1") or sub_brief.get("line_1") or brief.get("bullet_1_fundamental") or f"{sym} evaluated across all active institutional engines."
+            l2_txt = brief.get("line_2") or sub_brief.get("line_2") or brief.get("bullet_2_tape_flow") or "Cash conversion and technical tape verified."
+            l3_txt = brief.get("line_3") or sub_brief.get("line_3") or brief.get("bullet_3_vedic_catalyst") or f"Maintain discipline around stop-loss guardrails."
+            news_list = eval_res.get("Live_Forensics", {}).get("News_Headlines", brief.get("news_headlines", []))
 
             # Action Determination Logic
             if not gate_0_passed or score < 45.0:
@@ -310,9 +315,10 @@ class PortfolioDecisionEngine:
                 "Stop_Loss_INR": stop_loss,
                 "Target_INR": target_1,
                 "Optimal_Horizon": eval_res.get("Optimal_Horizon", "H4"),
-                "Line_1_Why": brief.get("line_1", ""),
-                "Line_2_Catalyst": brief.get("line_2", ""),
-                "Line_3_Execution": brief.get("line_3", ""),
+                "Line_1_Why": l1_txt,
+                "Line_2_Catalyst": l2_txt,
+                "Line_3_Execution": l3_txt,
+                "News_Headlines": news_list,
             })
 
         df_actions = pd.DataFrame(actions)

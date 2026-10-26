@@ -1552,14 +1552,16 @@ def compute_216_variable_codex(
     gex_data = AntiManipulationShield.compute_options_gex_profile(cmp_val, v076_max_pain_strike)
     wyckoff_spring, wyckoff_note = AntiManipulationShield.detect_wyckoff_spring(df_hist, v068_poc_price, v070_val_price)
 
-    # Multi-Horizon Wealth Allocation Classification (H1 - H5)
-    horizon_code, horizon_info = MultiHorizonWealthEngine.classify_optimal_horizon(
+    # Multi-Horizon Wealth Allocation Classification (H1 - H5) — preserve user's selected horizon_code!
+    user_selected_horizon = horizon_code if horizon_code in ["H0", "H1", "H2", "H3", "H4", "H5"] else "H4"
+    auto_horizon_code, horizon_info = MultiHorizonWealthEngine.classify_optimal_horizon(
         vol_surge=vol_surge,
         rsi_14=v082_rsi14,
         roic_pct=v025_roic_pct,
         f_score=v210_piotroski_f_score,
         is_hard_veto=hard_veto_triggered,
     )
+    horizon_code = user_selected_horizon
 
     # ==========================================================================
     # EXPANSION TO 300 VARIABLES & 10 INDEPENDENT ENGINE BUCKETS (VARS 217 - 300)
@@ -1649,6 +1651,7 @@ def compute_216_variable_codex(
             "055. Promoter_Pledge_Pct": v046_promoter_pledge_pct,
             "209. Altmans_Z_Score_Emerging_Markets": v209_altman_z_score,
             "217. Trailing_Dividend_Yield_Pct": div_metrics["217. Trailing_Dividend_Yield_Pct"],
+            "237. SEBI_ICDR_QIP_Preferential_Floor_Price": pe_metrics["237. SEBI_ICDR_QIP_Preferential_Floor_Price"],
             "255. Incremental_ROIC_3Yr_ROIIC_Pct": capex_vcp_metrics["255. Incremental_ROIC_3Yr_ROIIC_Pct"],
             "266. VCP_Volatility_Contraction_Tightness_Score": capex_vcp_metrics["266. VCP_Volatility_Contraction_Tightness_Score"],
             "SBC_Verdict": sbc_data.get("SBC_Verdict", "Benefic Rays"),
@@ -1741,16 +1744,24 @@ def compute_216_variable_codex(
         math.floor((portfolio_equity * (risk_params.get("max_single_stock_pct", 8.0) / 100.0)) / max(cmp_val, 1.0)),
     )
 
-    # 5-Second Executive Decision Brief Card Payload
+    # 5-Second Executive Decision Brief Card Payload (includes top-level line_1, line_2, line_3 + live news)
+    synth_brief = master_synth["Executive_Brief"]
+    live_news_list = live_forensics.get("News_Headlines", [])
     exec_brief = {
+        "badge": synth_brief.get("badge", verdict),
+        "line_1": synth_brief.get("line_1", ""),
+        "line_2": synth_brief.get("line_2", ""),
+        "line_3": synth_brief.get("line_3", ""),
+        "news_headlines": live_news_list,
         "verdict_badge": verdict,
         "horizon_code": horizon_code,
+        "optimal_auto_horizon": auto_horizon_code,
         "horizon_badge": f"{horizon_code}: {horizon_info['name']} ({horizon_info['window']})",
         "horizon_mechanism": horizon_info["mechanism"],
         "bullet_1_fundamental": f"ROIC {v025_roic_pct}% vs WACC {wacc_pct}% (Spread: {v026_roic_wacc_spread:+0.1f}%) | Beneish M: {v024_beneish_m} | Piotroski: {v210_piotroski_f_score}/9 | {forensic_summary}",
         "bullet_2_tape_flow": f"RFDI: {rfdi_data['RFDI_Index']:+0.2f} ({rfdi_data['Signal_Badge']}) | GEX: {gex_data['GEX_Regime']} (Max Pain: ₹{gex_data['Max_Pain_Strike']:,.0f}) | VPIN: {v185_vpin_toxicity:.2f}",
         "bullet_3_vedic_catalyst": f"Vedic: {kundli_data['Micro_Astro_Summary']} | Catalyst: {causal_data['Primary_Catalyst_Badge']} ({causal_data['Primary_Catalyst_Impact']})",
-        "3line_brief": master_synth["Executive_Brief"],
+        "3line_brief": synth_brief,
         "execution_blueprint": {
             "entry_zone": buy_zone_str,
             "stop_loss": f"₹{round(cmp_val - (atr_mult * v105_atr14), 1):,.1f} ({round((atr_mult * v105_atr14 / max(cmp_val, 1.0))*100, 1)}%)",
