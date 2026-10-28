@@ -1,3 +1,4 @@
+DEFAULT_PROFILES = ["Sovereign Core Mandate", "Family Office Growth", "HNI Compounder Vault", "Tactical Alpha Sleeve"]
 """
 ================================================================================
 VEDICQUANT PARAMA-VAJRA (ANANTA-216): COMPUTATIONAL MATHEMATICAL ENGINE (engine.py)
@@ -2067,8 +2068,25 @@ def compute_216_variable_codex(
         "Selected_Horizon": master_synth.get("Selected_Horizon", horizon_code),
         "Executive_Brief": exec_brief,
         "Risk_Params": risk_params,
+        "Promoter Pledge %": round(v046_promoter_pledge_pct, 2),
+        "Altman Z": round(v209_altman_z_score, 2),
         "ANJNA_v2_3_Payload": anjna_v23_res,
-        "ANJNA_v2_3_Score": anjna_v23_res["ANJNA_Final_Score"],
+        "ANJNA_v2_3_Score": float(anjna_v23_res["ANJNA_Final_Score"] or 0.0),
+        "ANJNA_v23_Score": float(anjna_v23_res["ANJNA_Final_Score"] or 0.0),
+        "ANJNA_Alpha_Orth": float(anjna_v23_res["Alpha_Orthogonal_Base"]),
+        "ANJNA_G0_Forensic": float(anjna_v23_res["G0_Forensic_Scalar"]),
+        "ANJNA_Forensic_Status": "HARD_VETO" if anjna_v23_res["G0_Forensic_Details"].get("Hard_Veto") else ("GREY_ZONE" if float(anjna_v23_res["G0_Forensic_Scalar"]) < 0.99 else "PASS"),
+        "ANJNA_G0_Tradable": 1 if anjna_v23_res["G0_Tradable_Passed"] else 0,
+        "ANJNA_Tradable_Status": "TRADABLE" if anjna_v23_res["G0_Tradable_Passed"] else "WATCHLIST_BLACKOUT",
+        "ANJNA_DTL_Days": float(anjna_v23_res["Tradability_Details"]["DTL_Days"]),
+        "ANJNA_L_Exec_Final": float(anjna_v23_res["L_Exec_Final"]),
+        "ANJNA_L_Cost_H": float(anjna_v23_res["Execution_Details"]["L_Cost_Amortized"]),
+        "ANJNA_M_Structural": float(anjna_v23_res["Execution_Details"]["M_Structural"]),
+        "ANJNA_C_Timing": float(anjna_v23_res["C_Timing"]),
+        "ANJNA_Kelly_Pct": float(anjna_v23_res["Kelly_Details"]["Final_Allocation_Pct"]),
+        "ANJNA_Verdict": anjna_v23_res["Verdict"],
+        "ANJNA_MF_Scores": anjna_v23_res["MF_Orthogonal_Scores"],
+        "ANJNA_Family_Weights": anjna_v23_res["Family_Weights"],
         "MF_Orthogonal_Scores": anjna_v23_res["MF_Orthogonal_Scores"],
         "Omega_MF_Weights": anjna_v23_res["Omega_MF_Weights"],
         "Family_Weights": anjna_v23_res["Family_Weights"],
@@ -2239,9 +2257,32 @@ def scan_radar_universe_216(
     if not df_out.empty:
         pct_above_ema50 = (df_out["CMP (₹)"] > df_out["EMA 50"]).mean() * 100.0
         mean_rsi = df_out["RSI (14)"].mean()
-        mean_alpha = df_out["ANANTA-216 Score"].mean()
+        mean_alpha = df_out["ANJNA_v23_Score"].mean() if "ANJNA_v23_Score" in df_out.columns else df_out["ANANTA-216 Score"].mean()
         live_mmi = round(0.40 * pct_above_ema50 + 0.35 * mean_rsi + 0.25 * mean_alpha, 1)
         macro_info["mmi"] = float(np.clip(live_mmi, 12.0, 92.0))
+
+        # Execute live Cross-Sectional Van der Waerden Probit + Liquid-Core Gram-Schmidt across scanned universe
+        try:
+            from core.anjna_v2_3_engine import ANJNAMetaFactorEngine
+            mf_keys = list(ANJNAMetaFactorEngine.META_FACTORS)
+            raw_mf_rows = []
+            for _, row in df_out.iterrows():
+                mfd = row.get("MF_Orthogonal_Scores", {}) or {}
+                raw_mf_rows.append({k: float(mfd.get(k, 50.0)) for k in mf_keys})
+            df_mf_raw = pd.DataFrame(raw_mf_rows, index=df_out["Symbol"].tolist())
+            if len(df_mf_raw) >= 4:
+                df_mf_orth, basis_B = ANJNAMetaFactorEngine.fit_and_transform_liquid_core_gram_schmidt(df_mf_raw)
+                corr_raw = df_mf_raw.corr().fillna(0.0)
+                corr_orth = df_mf_orth.corr().fillna(0.0)
+                off_diag_mask = ~np.eye(len(mf_keys), dtype=bool)
+                max_raw_corr = float(np.abs(corr_raw.values[off_diag_mask]).max()) if len(mf_keys) > 1 else 0.0
+                max_orth_corr = float(np.abs(corr_orth.values[off_diag_mask]).max()) if len(mf_keys) > 1 else 0.0
+                macro_info["mf_corr_raw"] = corr_raw
+                macro_info["mf_corr_orth"] = corr_orth
+                macro_info["max_raw_offdiag_corr"] = round(max_raw_corr, 4)
+                macro_info["max_orth_offdiag_corr"] = round(max_orth_corr, 6)
+        except Exception:
+            pass
 
     return df_out, macro_info
 
@@ -2402,46 +2443,60 @@ def generate_deterministic_copilot_response(
     vedic_ctx: Dict[str, Any],
     mmi_score: float,
 ) -> str:
+    """
+    ANJNA™ v2.3 Sovereign Quantitative AI Copilot.
+    Executes dynamic ticker recognition, live 332-signal / 15-Meta-Factor orthogonal
+    decomposition, Dual Gate-0 forensic/tradability checks, and Bayesian Quarter-Kelly sizing.
+    """
     q_up = user_query.upper().strip()
 
-    # 1. Multi-Stock Peer Comparison ("Compare X vs Y", "BEL vs HAL")
+    def _eval_anjna_sym(sym: str) -> Dict[str, Any]:
+        sym_clean = sym.replace(".NS", "").replace(".BO", "").strip()
+        if df_radar is not None and not df_radar.empty and "Symbol" in df_radar.columns:
+            m = df_radar[df_radar["Symbol"] == sym_clean]
+            if not m.empty and "ANJNA_Alpha_Orth" in m.columns:
+                return m.iloc[0].to_dict()
+        try:
+            hist = yf.Ticker(f"{sym_clean}.NS").history(period="6mo")
+        except Exception:
+            hist = pd.DataFrame()
+        return evaluate_320_institutional_codex(sym_clean, hist, vedic_ctx)
+
+    # 1. Multi-Stock Peer Comparison ("Compare X vs Y", "RELIANCE vs TCS")
     comp_match = re.search(r"\b(?:COMPARE\s+)?([A-Z0-9&\-\_]{2,12})\s+(?:VS|VERSUS|AND)\s+([A-Z0-9&\-\_]{2,12})\b", q_up)
     if comp_match:
-        sym1, sym2 = comp_match.group(1), comp_match.group(2)
-        sym1_clean = sym1.replace(".NS", "").replace(".BO", "")
-        sym2_clean = sym2.replace(".NS", "").replace(".BO", "")
-        
-        # Evaluate both stocks
-        def _get_codex(sym):
-            m = df_radar[df_radar["Symbol"] == sym] if not df_radar.empty else pd.DataFrame()
-            if not m.empty:
-                return m.iloc[0].to_dict()
-            try:
-                hist = yf.Ticker(f"{sym}.NS").history(period="6mo")
-            except Exception:
-                hist = pd.DataFrame()
-            return compute_300_variable_codex(sym, hist, vedic_ctx)
+        sym1 = comp_match.group(1).replace(".NS", "").replace(".BO", "")
+        sym2 = comp_match.group(2).replace(".NS", "").replace(".BO", "")
+        r1 = _eval_anjna_sym(sym1)
+        r2 = _eval_anjna_sym(sym2)
 
-        r1 = _get_codex(sym1_clean)
-        r2 = _get_codex(sym2_clean)
-
-        score1 = r1.get("Master_Alpha_Score", 60.0)
-        score2 = r2.get("Master_Alpha_Score", 60.0)
-        winner = sym1_clean if score1 >= score2 else sym2_clean
+        s1 = float(r1.get("ANJNA_v23_Score", r1.get("Master_Alpha_Score", 50.0)))
+        s2 = float(r2.get("ANJNA_v23_Score", r2.get("Master_Alpha_Score", 50.0)))
+        a1 = float(r1.get("ANJNA_Alpha_Orth", s1))
+        a2 = float(r2.get("ANJNA_Alpha_Orth", s2))
+        g1 = float(r1.get("ANJNA_G0_Forensic", 1.0))
+        g2 = float(r2.get("ANJNA_G0_Forensic", 1.0))
+        l1 = float(r1.get("ANJNA_L_Exec_Final", 1.0))
+        l2 = float(r2.get("ANJNA_L_Exec_Final", 1.0))
+        c1 = float(r1.get("ANJNA_C_Timing", 1.0))
+        c2 = float(r2.get("ANJNA_C_Timing", 1.0))
+        k1 = float(r1.get("ANJNA_Kelly_Pct", r1.get("Kelly Weight %", 0.0)))
+        k2 = float(r2.get("ANJNA_Kelly_Pct", r2.get("Kelly Weight %", 0.0)))
+        winner = sym1 if s1 >= s2 else sym2
 
         return (
-            f"### ⚔️ Institutional Head-to-Head Comparison: `{sym1_clean}` vs `{sym2_clean}`\n\n"
-            f"| Metric | `{sym1_clean}` | `{sym2_clean}` | Edge Leader |\n"
-            f"| :--- | :--- | :--- | :--- |\n"
-            f"| **Master Alpha Score** | **`{score1:.1f}/100`** | **`{score2:.1f}/100`** | **`{winner}`** ({abs(score1-score2):.1f} pts) |\n"
-            f"| **Verdict** | `{r1.get('Verdict', 'N/A')}` | `{r2.get('Verdict', 'N/A')}` | — |\n"
-            f"| **Live CMP** | ₹{r1.get('CMP (₹)', 0):,.2f} | ₹{r2.get('CMP (₹)', 0):,.2f} | — |\n"
-            f"| **Gate 0 Survival** | `{'PASS' if r1.get('Gate_0_Passed', True) else 'VETO'}` | `{'PASS' if r2.get('Gate_0_Passed', True) else 'VETO'}` | — |\n"
-            f"| **ROIC / ROCE** | `{r1.get('ROIC %', 0):.1f}%` | `{r2.get('ROIC %', 0):.1f}%` | `{sym1_clean if r1.get('ROIC %', 0) >= r2.get('ROIC %', 0) else sym2_clean}` |\n"
-            f"| **Beneish M-Score** | `{r1.get('Beneish M', -2.5):.2f}` | `{r2.get('Beneish M', -2.5):.2f}` | `{sym1_clean if r1.get('Beneish M', -2.5) <= r2.get('Beneish M', -2.5) else sym2_clean}` (Cleaner) |\n"
-            f"| **Optimal Horizon** | `{r1.get('Optimal_Horizon', 'H4')}` | `{r2.get('Optimal_Horizon', 'H4')}` | — |\n"
-            f"| **Kelly Sizing Cap** | `{r1.get('Kelly Weight %', 4.0):.1f}%` | `{r2.get('Kelly Weight %', 4.0):.1f}%` | — |\n\n"
-            f"**Strategic Takeaway:** **`{winner}`** is the mathematically superior allocation candidate today based on higher capital efficiency, clean forensic profile, and institutional volume support."
+            f"### ⚖️ ANJNA™ v2.3 Orthogonal Head-to-Head Audit: `{sym1}` vs `{sym2}`\n\n"
+            f"| ANJNA™ v2.3 Dimension | `{sym1}` ({r1.get('Sector', 'Equity')}) | `{sym2}` ({r2.get('Sector', 'Equity')}) | Structural Edge |\n"
+            f"| :--- | :---: | :---: | :--- |\n"
+            f"| **Final ANJNA™ v2.3 Conviction** | **`{s1:.2f} / 100`** | **`{s2:.2f} / 100`** | **`{winner}`** (+{abs(s1-s2):.2f} pts) |\n"
+            f"| **15-MF Orthogonal Base (`Alpha_orth`)** | `{a1:.2f}` | `{a2:.2f}` | `{sym1 if a1 >= a2 else sym2}` (Higher Factor Purity) |\n"
+            f"| **Gate-0 Forensic (`G0_forensic`)** | `{g1:.3f}` ({r1.get('ANJNA_Forensic_Status', 'PASS')}) | `{g2:.3f}` ({r2.get('ANJNA_Forensic_Status', 'PASS')}) | `{sym1 if g1 >= g2 else sym2}` (Cleaner Accounting) |\n"
+            f"| **Gate-0 Tradability (`G0_tradable`)** | `{r1.get('ANJNA_Tradable_Status', 'TRADABLE')}` (`{float(r1.get('ANJNA_DTL_Days', 0.0)):.2f}d DTL`) | `{r2.get('ANJNA_Tradable_Status', 'TRADABLE')}` (`{float(r2.get('ANJNA_DTL_Days', 0.0)):.2f}d DTL`) | Capacity Check |\n"
+            f"| **Split Execution (`L_exec,final`)** | `{l1:.3f}` | `{l2:.3f}` | `{sym1 if l1 >= l2 else sym2}` (Lower Friction) |\n"
+            f"| **Bounded Timing (`C_timing`)** | `{c1:.3f}` | `{c2:.3f}` | `{sym1 if c1 >= c2 else sym2}` (Stronger Confluence) |\n"
+            f"| **ROIC / Beneish M / Pledge** | `{float(r1.get('ROIC %', 0)):.1f}%` / `{float(r1.get('Beneish M', -2.3)):.2f}` / `{float(r1.get('Promoter Pledge %', 0)):.1f}%` | `{float(r2.get('ROIC %', 0)):.1f}%` / `{float(r2.get('Beneish M', -2.3)):.2f}` / `{float(r2.get('Promoter Pledge %', 0)):.1f}%` | Fundamental Hygiene |\n"
+            f"| **Bayesian Quarter-Kelly (`f*`)** | **`{k1:.2f}%`** ({r1.get('ANJNA_Verdict', r1.get('Verdict', 'HOLD'))}) | **`{k2:.2f}%`** ({r2.get('ANJNA_Verdict', r2.get('Verdict', 'HOLD'))}) | Optimal Horizon: `{r1.get('Optimal_Horizon', 'H2')}` vs `{r2.get('Optimal_Horizon', 'H2')}` |\n\n"
+            f"**Quantitative Synthesis:** **`{winner}`** commands superior risk-adjusted conviction via stronger orthogonal factor alignment across `MF01–MF15` and lower microstructure/forensic drag."
         )
 
     # 2. Capital Allocation Query ("Allocate 500000", "Invest 10 Lakh")
@@ -2461,8 +2516,8 @@ def generate_deterministic_copilot_response(
             plan = WealthOrderAllocator.generate_complete_wealth_plan(val)
             orders = plan["Orders_Table"]
             lines = [
-                f"### 💼 Instant Sovereign Wealth Allocation: ₹{val:,.0f}",
-                f"- **Total Deployed:** ₹{plan['Total_Deployed_INR']:,.0f} | **Cash Buffer:** ₹{plan['Cash_Buffer_INR']:,.0f}",
+                f"### ⚖️ ANJNA™ v2.3 Bayesian Quarter-Kelly + HRP Allocation: ₹{val:,.0f}",
+                f"- **Total Deployed:** ₹{plan['Total_Deployed_INR']:,.0f} | **Cash Reserve:** ₹{plan['Cash_Buffer_INR']:,.0f}",
                 f"- **Suggested Monthly SIP:** ₹{plan['Monthly_SIP_Suggested']:,.0f}/month\n",
                 "| Sleeve | Scrip | Qty | Live CMP | Total Outlay | Stop Loss | Target |",
                 "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
@@ -2473,12 +2528,12 @@ def generate_deterministic_copilot_response(
         except Exception:
             pass
 
-    # 3. Detect single ticker symbol mentioned
+    # 3. Single Ticker Deep ANJNA v2.3 Decomposition
     mentioned_sym = None
     all_known_syms = set(SECTOR_DEFAULT_MAP.keys())
-    if not df_vault_disp.empty:
+    if df_vault_disp is not None and not df_vault_disp.empty and "Symbol" in df_vault_disp.columns:
         all_known_syms.update(df_vault_disp["Symbol"].tolist())
-    if not df_radar.empty:
+    if df_radar is not None and not df_radar.empty and "Symbol" in df_radar.columns:
         all_known_syms.update(df_radar["Symbol"].tolist())
 
     tokens = [re.sub(r"\.(NS|BO)$", "", t) for t in re.split(r"[\s,?.!:;]+", q_up) if t]
@@ -2488,112 +2543,124 @@ def generate_deterministic_copilot_response(
             break
 
     if mentioned_sym is None:
-        m_custom = re.search(r"\b(?:AUDIT|ANALYZE|CHECK|PRICE|BUY|SELL)\s+([A-Z0-9&\-\_]{2,12})\b", q_up)
+        m_custom = re.search(r"\b(?:AUDIT|ANALYZE|CHECK|PRICE|BUY|SELL|XRAY|X-RAY)\s+([A-Z0-9&\-\_]{2,12})\b", q_up)
         if m_custom:
             cand_tok = m_custom.group(1)
             if cand_tok not in {"WHAT", "SHOULD", "TODAY", "PORTFOLIO", "MARKET", "TOP", "STOCKS", "NOW", "THE", "MY", "IN"}:
                 mentioned_sym = cand_tok
 
     if mentioned_sym:
-        rad_match = df_radar[df_radar["Symbol"] == mentioned_sym] if not df_radar.empty else pd.DataFrame()
-        if not rad_match.empty:
-            r = rad_match.iloc[0].to_dict()
-        else:
-            try:
-                hist = yf.Ticker(f"{mentioned_sym}.NS").history(period="6mo")
-            except Exception:
-                hist = pd.DataFrame()
-            r = compute_300_variable_codex(mentioned_sym, hist, vedic_ctx)
+        r = _eval_anjna_sym(mentioned_sym)
+        s = float(r.get("ANJNA_v23_Score", r.get("Master_Alpha_Score", 50.0)))
+        a_orth = float(r.get("ANJNA_Alpha_Orth", s))
+        g_for = float(r.get("ANJNA_G0_Forensic", 1.0))
+        g_trad = int(r.get("ANJNA_G0_Tradable", 1))
+        l_exec = float(r.get("ANJNA_L_Exec_Final", 1.0))
+        l_cost = float(r.get("ANJNA_L_Cost_H", 1.0))
+        m_struct = float(r.get("ANJNA_M_Structural", 1.0))
+        c_tim = float(r.get("ANJNA_C_Timing", 1.0))
+        kelly = float(r.get("ANJNA_Kelly_Pct", r.get("Kelly Weight %", 0.0)))
+        verdict = r.get("ANJNA_Verdict", r.get("Verdict", "HOLD"))
+        mf_scores = r.get("ANJNA_MF_Scores", {}) or {}
+        fam_weights = r.get("ANJNA_Family_Weights", {}) or {}
+
+        top_mfs = sorted(mf_scores.items(), key=lambda kv: kv[1], reverse=True)[:5]
+        weak_mfs = sorted(mf_scores.items(), key=lambda kv: kv[1])[:3]
+        top_mf_str = ", ".join([f"`{k}` ({v:.1f})" for k, v in top_mfs]) if top_mfs else "Balanced"
+        weak_mf_str = ", ".join([f"`{k}` ({v:.1f})" for k, v in weak_mfs]) if weak_mfs else "None"
+        fam_str = " | ".join([f"`{k.split('_')[0]}`: {v*100:.1f}%" for k, v in fam_weights.items()]) if fam_weights else "Capped-Simplex Balanced"
 
         held_info = "Not currently held in active profile."
-        if not df_vault_disp.empty and mentioned_sym in df_vault_disp["Symbol"].values:
+        if df_vault_disp is not None and not df_vault_disp.empty and mentioned_sym in df_vault_disp["Symbol"].values:
             h_row = df_vault_disp[df_vault_disp["Symbol"] == mentioned_sym].iloc[0]
             held_info = (
-                f"Held in **{active_profile}**: `{h_row['Shares']:,.0f}` sh @ Reconciled Avg `₹{h_row['Buy Price']:,.2f}` | "
+                f"Held in **{active_profile}**: `{h_row['Shares']:,.0f}` sh @ Avg `₹{h_row['Buy Price']:,.2f}` | "
                 f"Weight: **`{h_row['Weight %']:.2f}%`** | P&L: **`₹{h_row['P&L (₹)']:+,.2f} ({h_row['P&L %']:+.1f}%)`**"
             )
 
-        b_scores = r.get("Bucket_Scores", {})
-        b_evidence = r.get("Bucket_Evidence", {})
-
         return (
-            f"### ⚡ AURELIUS APEX (AQ-OS v9.0) Audit: `{mentioned_sym}` ({r.get('Sector', 'Equities')})\n\n"
-            f"- **Master Alpha Score:** **`{r.get('Master_Alpha_Score', 60.0):.1f}/100`** | **Verdict:** **{r.get('Verdict', 'HOLD')}**\n"
-            f"- **Execution Setup:** CMP **`₹{r.get('CMP (₹)', 0):,.2f}`** (`{r.get('Change %', 0):+.2f}%`) | Buy Zone: **`{r.get('Buy Zone', 'N/A')}`** | "
-            f"Stop Loss: **`₹{r.get('Stop-Loss (₹)', 0):,.1f}`** | Target: **`₹{r.get('Target_T1 (₹)', 0):,.1f}`**\n"
-            f"- **Gate 0 Survival:** **`{'PASSED' if r.get('Gate_0_Passed', True) else 'FAILED'}`** — {r.get('Forensic Note', 'Clean')}\n"
-            f"- **10-Engine Breakdown:**\n"
-            f"  - **B01 Forensic Shield:** `{b_scores.get('B01_FORENSIC_SHIELD', 85):.0f}/100` — {b_evidence.get('B01_FORENSIC_SHIELD', 'Clean')}\n"
-            f"  - **B02 Fundamental Moat:** `{b_scores.get('B02_FUNDAMENTAL_MOAT', 80):.0f}/100` — {b_evidence.get('B02_FUNDAMENTAL_MOAT', 'Strong')}\n"
-            f"  - **B03 Technical VCP:** `{b_scores.get('B03_TECHNICAL_VCP', 75):.0f}/100` — {b_evidence.get('B03_TECHNICAL_VCP', 'Breakout Ready')}\n"
-            f"  - **B04 Behavioral Whale:** `{b_scores.get('B04_BEHAVIORAL_WHALE', 70):.0f}/100` — {b_evidence.get('B04_BEHAVIORAL_WHALE', 'Accumulation')}\n"
-            f"  - **B05 Dividend TSY:** `{b_scores.get('B05_DIVIDEND_TSY', 65):.0f}/100` — {b_evidence.get('B05_DIVIDEND_TSY', 'Yield')}\n"
-            f"  - **B06 PE/QIP Deals:** `{b_scores.get('B06_PE_QIP_DEALS', 70):.0f}/100` — {b_evidence.get('B06_PE_QIP_DEALS', 'Floor Support')}\n"
-            f"  - **B07 News Catalysts:** `{b_scores.get('B07_NEWS_CATALYSTS', 75):.0f}/100` — {b_evidence.get('B07_NEWS_CATALYSTS', 'Positive')}\n"
-            f"  - **B08 Macro RRG Chaos:** `{b_scores.get('B08_MACRO_RRG_CHAOS', 72):.0f}/100` — {b_evidence.get('B08_MACRO_RRG_CHAOS', 'Leading')}\n"
-            f"  - **B09 Master Kautilya:** `{b_scores.get('B09_MASTER_KAUTILYA', 80):.0f}/100` — {b_evidence.get('B09_MASTER_KAUTILYA', 'Aligned')}\n"
-            f"  - **B10 Vedic Jyotish:** `{b_scores.get('B10_VEDIC_JYOTISH', 75):.0f}/100` — {b_evidence.get('B10_VEDIC_JYOTISH', 'Benefic Flow')}\n"
+            f"### 🧬 ANJNA™ v2.3 Complete Mathematical X-Ray: `{mentioned_sym}` ({r.get('Sector', 'Equities')})\n\n"
+            f"- **Master Conviction (`ANJNA v2.3`):** **`{s:.2f} / 100`** | **Verdict:** **{verdict}** | **Optimal Horizon:** `{r.get('Optimal_Horizon', 'H2 (3M)')}`\n"
+            f"- **Multiplicative Master Equation Trace:**\n"
+            f"  `ANJNA_v2.3 = {a_orth:.2f} (Alpha_orth) × {g_for:.3f} (G0_forensic) × {g_trad} (G0_tradable) × {l_exec:.3f} (L_exec,final) × {c_tim:.3f} (C_timing) = {s:.2f}`\n"
+            f"- **Dual Gate-0 Audit:**\n"
+            f"  - **Gate 0A Forensic (`G0_forensic`):** `{g_for:.3f}` (`{r.get('ANJNA_Forensic_Status', 'PASS')}`) — {r.get('Forensic Note', 'Clean Accounting')}\n"
+            f"  - **Gate 0B Tradability (`G0_tradable`):** `{r.get('ANJNA_Tradable_Status', 'TRADABLE')}` (`DTL = {float(r.get('ANJNA_DTL_Days', 0.0)):.2f} days`)\n"
+            f"- **Split Execution & Bounded Timing:**\n"
+            f"  - Cost Decay `L_cost^η(h) = {l_cost:.3f}` | Surveillance `M_structural = {m_struct:.3f}` | Timing `C_timing = {c_tim:.3f}`\n"
+            f"- **15 Orthogonal Meta-Factors (`MF01–MF15`) & Capped-Simplex Families (`F1–F6`):**\n"
+            f"  - **Top Orthogonal Drivers:** {top_mf_str}\n"
+            f"  - **Lagging Meta-Factors:** {weak_mf_str}\n"
+            f"  - **Family Weights:** {fam_str}\n"
+            f"- **Execution & Bayesian Quarter-Kelly Sizing (`f*`):**\n"
+            f"  - CMP: **`₹{r.get('CMP (₹)', 0):,.2f}`** | Buy Zone: **`{r.get('Buy Zone', 'N/A')}`** | Stop-Loss: **`₹{r.get('Stop-Loss (₹)', 0):,.1f}`** | Target: **`₹{r.get('Target_T1 (₹)', 0):,.1f}`** | Bayesian Kelly Cap: **`{kelly:.2f}%`**\n"
             f"- **Position Status:** {held_info}"
         )
 
     # 4. Trim / Sell / Rebalance / Risk Audit Query
     if any(k in q_up for k in ("TRIM", "SELL", "EXIT", "REDUCE", "VETO", "RISK", "OVERWEIGHT", "REBALANCE")):
-        if df_vault_disp.empty:
-            return f"Your **{active_profile}** vault is currently empty. Add your portfolio holdings in Station 1 (Portfolio Surgeon) first."
-        overweight = df_vault_disp[df_vault_disp["Weight %"] > 8.0]
+        if df_vault_disp is None or df_vault_disp.empty:
+            return f"Your **{active_profile}** portfolio ledger is currently empty. Add or import holdings in the **Portfolio Surgeon** workstation first."
+        overweight = df_vault_disp[df_vault_disp["Weight %"] > 12.0]
         vetoed = df_vault_disp[df_vault_disp["Symbol"].isin(FORENSIC_VETO_REGISTRY.keys())]
-        lines = [f"### 🛡️ Portfolio Surgeon & Risk Audit ({active_profile})"]
+        lines = [f"### 🛡️ ANJNA™ v2.3 Dual Gate-0 & Concentration Triage (`{active_profile}`)"]
         if not vetoed.empty:
-            lines.append("**1. Immediate Gate 0 Forensic Veto Exits:**")
+            lines.append("**1. Immediate Gate-0A Forensic Kill-Switch Exits (`G0_forensic = 0`):**")
             for _, vr in vetoed.iterrows():
                 lines.append(
                     f"- **`{vr['Symbol']}`** (`{vr['Shares']:,.0f}` sh | Wt: `{vr['Weight %']:.2f}%` | P&L: `₹{vr['P&L (₹)']:+,.0f}`): "
                     f"⛔ **{FORENSIC_VETO_REGISTRY[vr['Symbol']]['reason']}**"
                 )
         else:
-            lines.append("- **Gate 0 Survival:** Zero forensic-vetoed stocks held in this portfolio.")
+            lines.append("- **Gate-0A Forensic Integrity:** Zero forensic-vetoed equities held in this mandate.")
 
         if not overweight.empty:
-            lines.append("\n**2. Single-Stock Risk Ceiling Breaches (>8.0% Portfolio Weight):**")
+            lines.append("\n**2. Single-Name Kelly/HRP Ceiling Breaches (`>12.0%` Mandate Weight):**")
             for _, ov in overweight.iterrows():
-                excess_pct = ov["Weight %"] - 8.0
+                excess_pct = ov["Weight %"] - 12.0
                 lines.append(
-                    f"- **`{ov['Symbol']}`** is at **`{ov['Weight %']:.2f}%`** (Excess: `+{excess_pct:.2f}%` above 8.0% ceiling). "
-                    f"Recommend trimming {excess_pct:.1f}% to lock gains."
+                    f"- **`{ov['Symbol']}`** is at **`{ov['Weight %']:.2f}%`** (`+{excess_pct:.2f}%` above the `12.0%` institutional cap)."
                 )
         else:
-            lines.append("\n- **Risk Diversification:** Every position is within the **8.0% risk cap**.")
+            lines.append("\n- **Concentration Discipline:** Every holding respects the `12.0%` single-name institutional ceiling.")
         return "\n".join(lines)
 
     # 5. Buy / Accumulate / Top Picks Query
-    if any(k in q_up for k in ("BUY", "ACCUMULATE", "TOP", "PICK", "OPPORTUNIT", "RADAR")):
-        top5 = df_radar[~df_radar["Hard Veto"]].sort_values(by="Master_Alpha_Score", ascending=False).head(5) if "Master_Alpha_Score" in df_radar.columns else df_radar.head(5)
-        lines = [
-            f"### 🟢 Top 5 Institutional Buy Candidates (Live AQ-OS v9.0 Scanner | MMI: `{mmi_score:.1f}`)",
-            f"*Execution Window:* Active Choghadiya: **{vedic_ctx.get('choghadiya', 'Amrit')}**\n",
-        ]
-        for _, row in top5.iterrows():
-            score = row.get("Master_Alpha_Score", row.get("ANANTA-216 Score", 85.0))
-            lines.append(
-                f"- **`{row['Symbol']}`** ({row['Sector']}) — **Score: `{score:.1f}/100`** ({row.get('Verdict', 'BUY')}) | "
-                f"CMP: `₹{row['CMP (₹)']:,.2f}` | Buy Zone: **`{row['Buy Zone']}`** | Stop: `₹{row['Stop-Loss (₹)']:,.1f}` | "
-                f"Target: `₹{row['Target_T1 (₹)']:,.1f}` | Kelly Wt: `{row.get('Kelly Weight %', 5.0)}%`"
-            )
-        return "\n".join(lines)
+    if any(k in q_up for k in ("BUY", "ACCUMULATE", "TOP", "PICK", "OPPORTUNIT", "RADAR", "SCAN")):
+        if df_radar is not None and not df_radar.empty:
+            clean_rad = df_radar[~df_radar["Hard Veto"]] if "Hard Veto" in df_radar.columns else df_radar
+            top5 = clean_rad.sort_values(by="Master_Alpha_Score", ascending=False).head(5)
+            lines = [
+                f"### 🟢 Top 5 ANJNA™ v2.3 Orthogonal Leaders (MMI: `{mmi_score:.1f}`)",
+            ]
+            for _, row in top5.iterrows():
+                score = float(row.get("ANJNA_v23_Score", row.get("Master_Alpha_Score", 75.0)))
+                a_orth = float(row.get("ANJNA_Alpha_Orth", score))
+                g_for = float(row.get("ANJNA_G0_Forensic", 1.0))
+                lines.append(
+                    f"- **`{row['Symbol']}`** ({row.get('Sector', 'Equity')}) — **ANJNA™ v2.3: `{score:.2f}/100`** (`Alpha_orth = {a_orth:.1f}`, `G0_for = {g_for:.3f}`) | "
+                    f"Verdict: **{row.get('Verdict', 'BUY')}** | CMP: `₹{row.get('CMP (₹)', 0):,.2f}` | Kelly: `{row.get('Kelly Weight %', 5.0):.2f}%`"
+                )
+            return "\n".join(lines)
 
-    # 6. General Portfolio & Status Overview
-    tot_v = float(df_vault_disp["Market Value"].sum()) if not df_vault_disp.empty else 0.0
-    tot_c = float(df_vault_disp["Cost Basis"].sum()) if not df_vault_disp.empty else 0.0
+    # 6. General Portfolio & Universe Status Overview
+    tot_v = float(df_vault_disp["Market Value"].sum()) if (df_vault_disp is not None and not df_vault_disp.empty and "Market Value" in df_vault_disp.columns) else 0.0
+    tot_c = float(df_vault_disp["Cost Basis"].sum()) if (df_vault_disp is not None and not df_vault_disp.empty and "Cost Basis" in df_vault_disp.columns) else 0.0
     tot_pnl = tot_v - tot_c
-    top_buys = df_radar.sort_values(by="Master_Alpha_Score", ascending=False).head(4)["Symbol"].tolist() if "Master_Alpha_Score" in df_radar.columns and not df_radar.empty else ["BEL", "HAL", "TRENT", "TITAN"]
+    top_buys = (
+        df_radar.sort_values(by="Master_Alpha_Score", ascending=False).head(4)["Symbol"].tolist()
+        if (df_radar is not None and not df_radar.empty and "Master_Alpha_Score" in df_radar.columns)
+        else []
+    )
+    leaders_str = ", ".join(top_buys) if top_buys else "Run Cross-Sectional Universe Scan to rank leaders"
 
     return (
-        f"### 🧠 AURELIUS APEX (AQ-OS v9.0) Copilot Synthesis\n"
-        f"- **Active Portfolio NAV (`{active_profile}`):** `{len(df_vault_disp)}` holdings | Cost: `₹{tot_c:,.2f}` | "
+        f"### 🧠 ANJNA™ v2.3 Sovereign Quantitative Copilot Synthesis\n"
+        f"- **Active Mandate (`{active_profile}`):** `{len(df_vault_disp) if df_vault_disp is not None else 0}` holdings | Cost: `₹{tot_c:,.2f}` | "
         f"Mark-to-Market: `₹{tot_v:,.2f}` | Unrealized P&L: **`₹{tot_pnl:+,.2f}`**\n"
-        f"- **Market Regime:** MMI `{mmi_score:.1f}` | Timing: **{vedic_ctx.get('choghadiya', 'Amrit')}** | Kala Shuddhi: `{vedic_ctx.get('kala_shuddhi_score', 85)}/100`\n"
-        f"- **Top Scanner Leaders:** `{', '.join(top_buys)}`\n"
-        f"- *Ask me anything:* `Audit <STOCK>`, `Compare X vs Y`, `Allocate <₹>`, or `Rebalance`."
+        f"- **Macro & Microstructure State:** MMI `{mmi_score:.1f}` | Orthogonal Engine: `332 Signals → 15 Meta-Factors (MF01–MF15) → Dual Gate 0`\n"
+        f"- **Current Cross-Sectional Leaders:** `{leaders_str}`\n"
+        f"- *Commands:* `Audit <TICKER>`, `Compare <TICKER_A> vs <TICKER_B>`, `Allocate <₹ AMOUNT>`, or `Rebalance`."
     )
 
 
@@ -2683,11 +2750,11 @@ def build_ananta216_excel_dossier(
         # ----------------------------------------------------------------------
         # SHEET 1: EXECUTIVE BRIEF & VEDIC CHRONOMETER
         # ----------------------------------------------------------------------
-        ws1 = wb.add_worksheet(sanitize_sheet_name("01_Executive_Vedic_Brief"))
+        ws1 = wb.add_worksheet(sanitize_sheet_name("01_ANJNA_v23_Executive"))
         ws1.hide_gridlines(2)
         ws1.set_column("A:A", 38)
         ws1.set_column("B:B", 54)
-        ws1.merge_range("A1:B1", "VEDICQUANT PARAMA-VAJRA (ANANTA-216) SOVEREIGN DOSSIER", fmt_title)
+        ws1.merge_range("A1:B1", "ANJNA™ v2.3 SOVEREIGN ORTHOGONAL QUANTITATIVE DOSSIER (332-SIGNAL / 15-MF)", fmt_title)
         ws1.merge_range("A2:B2", f"Generated: {vedic_info['date']} ({vedic_info['time_ist']}) | Active Profile: {active_profile}", fmt_sub)
 
         # Ensure df_vault_disp has standard display columns
@@ -2854,12 +2921,12 @@ def build_ananta216_excel_dossier(
         # ----------------------------------------------------------------------
         # SHEET 5: MASTER 216-VARIABLE DETERMINISTIC CODEX LEDGER
         # ----------------------------------------------------------------------
-        s5_name = sanitize_sheet_name(f"05_Codex216_{featured_sym}")
+        s5_name = sanitize_sheet_name(f"05_Codex332_{featured_sym}")
         ws5 = wb.add_worksheet(s5_name)
         ws5.hide_gridlines(2)
         ws5.set_column("A:A", 48)
         ws5.set_column("B:B", 38)
-        ws5.write(0, 0, f"PARAMA-VAJRA 216-Variable Metric ({featured_sym})", fmt_hdr)
+        ws5.write(0, 0, f"ANJNA™ v2.3 332-Signal Point-in-Time Metric ({featured_sym})", fmt_hdr)
         ws5.write(0, 1, "Deterministic Value / Computed Status", fmt_hdr)
 
         for i_idx, (m_key, m_val) in enumerate(featured_codex.items(), start=1):
