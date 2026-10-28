@@ -1,4 +1,3 @@
-
 # ==============================================================================
 # 👁️ ANJNA™ v2.3 — SOVEREIGN WEALTH & QUANTITATIVE INVESTMENT TERMINAL
 # ==============================================================================
@@ -1444,4 +1443,3 @@ with nav_tabs[4]:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-```
