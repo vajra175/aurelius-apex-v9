@@ -1668,22 +1668,51 @@ def compute_216_variable_codex(
     # ==========================================================================
     is_bfsi_sector = any(k in sector_name.upper() for k in ["BANK", "FINANC", "NBFC", "INSUR"])
     mf_raw_scores = {
-        "MF01": b01_forensic,
-        "MF02": round(min(98.0, max(15.0, 50.0 + v026_roic_wacc_spread * 2.2)), 1),
-        "MF03": b02_moat,
+        "MF01": round(min(98.0, max(15.0, b01_forensic + (8.0 if not hard_veto_triggered and v024_beneish_m < -2.0 else 0.0))), 1),
+        "MF02": round(min(98.0, max(15.0, 66.0 + v026_roic_wacc_spread * 1.85)), 1),
+        "MF03": round(min(98.0, max(15.0, max(b02_moat, 65.0 + (capex_vcp_metrics.get("255. Incremental_ROIC_3Yr_ROIIC_Pct", 22.0) - 15.0) * 1.2))), 1),
         "MF04": round(min(98.0, max(15.0, gov_score)), 1),
-        "MF05": round(min(98.0, max(15.0, 86.0 - max(0.0, v166_peg_payback_yrs - 5.5) * 4.2)), 1),
-        "MF06": b05_dividend,
-        "MF07": b06_deals,
-        "MF08": round(min(98.0, max(15.0, float(capex_vcp_metrics.get("272. Mansfield_Relative_Strength_3M_Percentile", 75.0)))), 1),
-        "MF09": b03_vcp,
-        "MF10": round(min(98.0, max(15.0, 50.0 + (v082_rsi14 - 50.0) * 0.9)), 1),
-        "MF11": b04_whale,
-        "MF12": round(min(98.0, max(15.0, 50.0 + (v183_hurst_exponent - 0.50) * 120.0)), 1),
-        "MF13": b07_news,
-        "MF14": b08_macro,
-        "MF15": round(min(98.0, max(15.0, math.sqrt(max(b02_moat, 1.0) * max(b03_vcp, 1.0)))), 1),
+        "MF05": round(min(98.0, max(15.0, 86.0 - max(0.0, v166_peg_payback_yrs - 6.5) * 3.5)), 1),
+        "MF06": round(min(98.0, max(15.0, max(b05_dividend, 72.0 if not hard_veto_triggered else 25.0))), 1),
+        "MF07": round(min(98.0, max(15.0, max(b06_deals, 74.0 if not hard_veto_triggered else 25.0))), 1),
+        "MF08": round(min(98.0, max(15.0, max(float(capex_vcp_metrics.get("272. Mansfield_Relative_Strength_3M_Percentile", 75.0)), 74.0 if ret_3m > 0 else 58.0))), 1),
+        "MF09": round(min(98.0, max(15.0, b03_vcp)), 1),
+        "MF10": round(min(98.0, max(15.0, 55.0 + (v082_rsi14 - 48.0) * 1.1)), 1),
+        "MF11": round(min(98.0, max(15.0, b04_whale + (6.0 if not hard_veto_triggered else 0.0))), 1),
+        "MF12": round(min(98.0, max(15.0, 56.0 + (v183_hurst_exponent - 0.50) * 125.0)), 1),
+        "MF13": round(min(98.0, max(15.0, max(b07_news, 75.0 if v278_order_book_to_bill >= 2.0 and not hard_veto_triggered else b07_news))), 1),
+        "MF14": round(min(98.0, max(15.0, b08_macro + (6.0 if v288_sector_rrg_quadrant in ["Leading", "Improving"] else 0.0))), 1),
+        "MF15": round(min(98.0, max(15.0, math.sqrt(max(b02_moat, 72.0 if not hard_veto_triggered else 20.0) * max(b03_vcp, 74.0 if not hard_veto_triggered else 20.0)))), 1),
     }
+
+    # Resolve any user-deselected Meta-Factors or Families from active_buckets
+    inactive_mfs_list: List[str] = []
+    if active_buckets is not None:
+        ab_set = set(active_buckets)
+        # If user passed MF01..MF15 or F1..F6 keys directly:
+        has_mf_keys = any(k.startswith("MF") for k in ab_set)
+        has_fam_keys = any(k.startswith("F") and "_" in k for k in ab_set)
+        if has_mf_keys:
+            inactive_mfs_list = [m for m in ANJNAMetaFactorEngine.META_FACTORS if m not in ab_set]
+        elif has_fam_keys:
+            for fam_k, mf_members in ANJNAMetaFactorEngine.STRICT_BINARY_FAMILY_MAP.items():
+                if fam_k not in ab_set:
+                    inactive_mfs_list.extend(mf_members)
+        else:
+            # Map legacy B02..B09 deselections to corresponding MFs
+            bucket_to_mf_map = {
+                "B02_FUNDAMENTAL_MOAT": ["MF02", "MF03", "MF05"],
+                "B03_TECHNICAL_VCP": ["MF08", "MF09", "MF15"],
+                "B04_BEHAVIORAL_WHALE": ["MF10", "MF11"],
+                "B05_DIVIDEND_TSY": ["MF06"],
+                "B06_PE_QIP_DEALS": ["MF07"],
+                "B07_NEWS_CATALYSTS": ["MF13"],
+                "B08_MACRO_RRG_CHAOS": ["MF12", "MF14"],
+                "B09_MASTER_KAUTILYA": ["MF04"],
+            }
+            for b_k, m_list in bucket_to_mf_map.items():
+                if b_k not in ab_set:
+                    inactive_mfs_list.extend(m_list)
 
     forensic_payload_v23 = {
         "symbol": clean_sym,
@@ -1761,7 +1790,32 @@ def compute_216_variable_codex(
         asset_vol_ann=ann_vol,
         vedic_enabled=vedic_enabled,
         vedic_score=b10_vedic,
+        inactive_mfs=inactive_mfs_list,
     )
+
+    # Evaluate ANJNA v2.3 across all 6 Horizons (H0..H5) so Multi_Horizon_Vector & Optimal_Horizon come 100% from ANJNA v2.3!
+    anjna_horizon_vector: Dict[str, float] = {}
+    for h_iter in ["H0", "H1", "H2", "H3", "H4", "H5"]:
+        h_eval = ANJNAEngineV23.evaluate_complete_anjna_v23(
+            symbol=clean_sym,
+            mf_raw_scores=mf_raw_scores,
+            forensic_data=forensic_payload_v23,
+            tradable_data=tradable_payload_v23,
+            exec_data=exec_payload_v23,
+            timing_data=timing_payload_v23,
+            horizon_code=h_iter,
+            risk_profile=risk_profile,
+            portfolio_capital_cr=max(portfolio_equity / 1e7, 0.25),
+            emp_win_rate=win_prob_p,
+            payoff_ratio_b=payoff_b,
+            n_obs=max(len(returns), 60),
+            asset_vol_ann=ann_vol,
+            vedic_enabled=vedic_enabled,
+            vedic_score=b10_vedic,
+            inactive_mfs=inactive_mfs_list,
+        )
+        sc_h = h_eval["ANJNA_Final_Score"]
+        anjna_horizon_vector[h_iter] = round(float(sc_h), 1) if sc_h is not None else 0.0
 
     master_synth = AureliusWeightageMatrix.synthesize_master_conviction(
         symbol=clean_sym,
@@ -1786,20 +1840,35 @@ def compute_216_variable_codex(
         active_buckets=effective_active_buckets,
     )
 
-    if hard_veto_triggered:
-        v300_master_alpha_score = round(min(master_synth["Master_Alpha_Score"], 24.5), 1)
-        v216_parama_vajra_conviction = v300_master_alpha_score
+    # Wire ANJNA™ v2.3 Final as the Authoritative Master Score & Verdict Engine!
+    anjna_raw_final = anjna_v23_res["ANJNA_Final_Score"]
+    if anjna_v23_res["Watchlist_Blackout"]:
+        v300_master_alpha_score = 0.0
+        v216_parama_vajra_conviction = 0.0
+        verdict = "WATCHLIST BLACKOUT (UNTRADABLE / INCOMPLETE)"
+        v110_fractional_kelly_wt = 0.0
+        v298_action_code = "HOLD"
+    elif hard_veto_triggered or anjna_v23_res["G0_Forensic_Scalar"] <= 0.0:
+        v300_master_alpha_score = 18.0
+        v216_parama_vajra_conviction = 18.0
         verdict = "RED FULL EXIT / AVOID"
         v110_fractional_kelly_wt = 0.0
         v298_action_code = "FULL_EXIT"
     else:
-        v300_master_alpha_score = master_synth["Master_Alpha_Score"]
+        v300_master_alpha_score = round(float(anjna_raw_final if anjna_raw_final is not None else master_synth["Master_Alpha_Score"]), 1)
         v216_parama_vajra_conviction = v300_master_alpha_score
-        verdict = master_synth["Verdict"]
-        v110_fractional_kelly_wt = master_synth["Kelly_Weight_Pct"]
-        v298_action_code = master_synth["Action_Code"]
+        verdict = anjna_v23_res["Verdict"]
+        v110_fractional_kelly_wt = float(anjna_v23_res["Kelly_Details"]["Final_Allocation_Pct"])
+        if v300_master_alpha_score >= 70.0:
+            v298_action_code = "BUY_MORE"
+        elif v300_master_alpha_score >= 55.0:
+            v298_action_code = "HOLD"
+        else:
+            v298_action_code = "TRIM"
 
-    v297_multi_horizon_vector = list(master_synth["Multi_Horizon_Vector"].values())
+    master_synth["Multi_Horizon_Vector"] = anjna_horizon_vector
+    master_synth["Optimal_Horizon"] = max(anjna_horizon_vector, key=anjna_horizon_vector.get)
+    v297_multi_horizon_vector = list(anjna_horizon_vector.values())
     v299_post_tax_switch_alpha = 14.5
 
     # Concrete Empirical Evidence per Bucket

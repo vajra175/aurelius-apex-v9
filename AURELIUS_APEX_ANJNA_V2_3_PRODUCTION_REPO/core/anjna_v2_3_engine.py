@@ -851,6 +851,7 @@ class ANJNAEngineV23:
         asset_vol_ann: float = 0.22,
         vedic_enabled: bool = False,
         vedic_score: float = 70.0,
+        inactive_mfs: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         g0_trad_res = cls.evaluate_g0_tradable(
             completeness_eff=float(tradable_data.get("completeness_eff", 0.95)),
@@ -865,6 +866,7 @@ class ANJNAEngineV23:
         omega_mf, fam_weights, tau_eff = ANJNAMetaFactorEngine.project_grouped_capped_simplex(
             horizon_code=horizon_code,
             risk_profile=risk_profile,
+            inactive_mfs=inactive_mfs,
         )
 
         mf_orth_scores = {k: round(float(np.clip(mf_raw_scores.get(k, 50.0), 0.0, 100.0)), 2) for k in ANJNAMetaFactorEngine.META_FACTORS}
